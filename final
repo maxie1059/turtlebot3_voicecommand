@@ -1,0 +1,191 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import rospy, actionlib, re, nltk, time, sys
+import speech_recognition as sr
+from threading import Thread
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from nltk import pos_tag, RegexpParser
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import wordnet
+from nltk.tag.util import untag
+from vosk_API import vosk_detect
+
+IS_SENSOR_RELIABLE = True
+
+class Spch2Txt():
+    """
+    This class is for speech recognition using Python SpeechRecognition package
+    """
+    def __init__(self):
+        self.r = sr.Recognizer()
+        self.m = sr.Microphone()
+
+    def calibrate(self):
+        print("A moment of silence, please...")
+        with self.m as source: self.r.adjust_for_ambient_noise(source, duration = 2)
+        print("Set minimum energy threshold to {}".format(self.r.energy_threshold))
+
+    def ggl_detect(self):
+        while not rospy.is_shutdown():
+            try:
+                print("Say something!")
+                with self.m as source: audio = self.r.listen(source,timeout = 7,phrase_time_limit=5)
+                print("Got it! Now to recognize it...")
+                # recognize speech using Google Speech Recognition
+                value = self.r.recognize_google(audio)
+                print('You said {}'.format(value))
+                return '{}'.format(value)
+                break
+            except sr.UnknownValueError:
+                print("Oops! Didn't catch that")
+            except sr.RequestError as e:
+                print("Uh oh! Couldn't request results from Google Speech Recognition service; {0}".format(e))
+            except sr.WaitTimeoutError:
+                print("Timeout!")
+
+class NLP():
+    """
+    This class is for natural language processing using Natural Language Toolkit NLTK
+    """
+    def __init__(self):
+        """
+        If you want to create a new function for the robot to understand, first, create a dictionary with template my_dict = {'name':...,'threshold':...,'grammar':...}
+        name: string of the verb you use, for ex, 'move'
+        threshold: any number from 0 to 1. This is the threshold of word similarity you want the robot to recognize, for ex, move and run has similarity 0.6. If you want the robot to understand run IS ALSO move then adjust the threshold to 0.6
+        grammar: key is grammar regular expression, for ex, it could be move to room 204 or \w+ to room \d+, value is function to execute
+        """
+        move_dict = {'name':'move','threshold': 0.4,'\w+ to (room \d+|\w+ \w+)':self.extract_goal}
+        go_dict = {'name':'go','threshold': 0.5}
+        punch_dict= {'name':'punch','threshold': 0.5}
+        self.list_of_dict = [move_dict,punch_dict,go_dict]
+        self.spch_CMD =[]
+        self.func2exe = []
+        self.exe_wut = []
+        self.confirm_list = []
+        self.lemmatizer=WordNetLemmatizer()
+
+    def extract_goal(self,cmd_sentence):
+        goal = []
+        if 'computer lab' in cmd_sentence:
+            self.confirm_list.append('move to computer lab')
+            self.exe_wut.append([0.5,-0.5,0,0,0,0,1])
+        elif 'food laboratory' in cmd_sentence:
+            self.confirm_list.append('move to food lab')
+            self.exe_wut.append([0.5,-1.5,0,0,0,0,1])
+        self.func2exe.append(movebase_client)
+
+    def most_similar_cmd(self,verb):
+        ranking = []
+        for this_dict in self.list_of_dict:
+            if wordnet.synset(self.lemmatizer.lemmatize(verb[0],'v')+'.v.01').wup_similarity(wordnet.synset(this_dict['name']+'.v.01')) > this_dict['threshold']:
+                if not ranking:
+                    ranking.append(this_dict)
+                else:
+                    for each_rank in ranking:
+                        if wordnet.synset(self.lemmatizer.lemmatize(verb[0],'v')+'.v.01').wup_similarity(wordnet.synset(this_dict['name']+'.v.01')) > wordnet.synset(self.lemmatizer.lemmatize(verb[0],'v')+'.v.01').wup_similarity(wordnet.synset(each_rank['name']+'.v.01')):
+                            ranking.insert(ranking.index(each_rank),this_dict)
+                            break
+                        elif self.lemmatizer.lemmatize(verb[0],'v') == this_dict['name']:
+                            ranking.insert(0,this_dict)
+                            break
+                        elif wordnet.synset(self.lemmatizer.lemmatize(verb[0],'v')+'.v.01').wup_similarity(wordnet.synset(this_dict['name']+'.v.01')) == wordnet.synset(self.lemmatizer.lemmatize(verb[0],'v')+'.v.01').wup_similarity(wordnet.synset(each_rank['name']+'.v.01')):
+                            ranking.insert(ranking.index(each_rank)+1,this_dict)
+                            break
+                    else:
+                        ranking.insert(len(ranking),this_dict)
+        return ranking
+
+    def return_list(self,stn):
+        cleaned = re.sub(r'\W+', ' ', stn).lower()
+        pos_tagged_sent = pos_tag(nltk.word_tokenize(cleaned))
+        cmd_grammar ="""CMD: {<VB.?><.+>*}
+                             }{<VB.?>"""
+        parser = RegexpParser(cmd_grammar)
+        cmd_with_postag = parser.parse(pos_tagged_sent)
+
+        for subtree in cmd_with_postag.subtrees(lambda t: t.label() == 'CMD'):
+            self.spch_CMD.append(subtree.leaves())
+        for cmd in self.spch_CMD:
+            similar_dicts = self.most_similar_cmd(untag(cmd))
+            if not similar_dicts:
+                continue
+            else:
+                for similar_dict in similar_dicts:
+                    for key in similar_dict.keys():
+                        if key != 'name' and key !='threshold':
+                            if re.search(key,' '.join(untag(cmd))):
+                                similar_dict[key](' '.join(untag(cmd)))
+        return self.func2exe,self.exe_wut,self.confirm_list
+
+def movebase_client(pose):
+    global IS_SENSOR_RELIABLE
+    client = actionlib.SimpleActionClient('move_base',MoveBaseAction)
+    client.wait_for_server()
+
+    goal = MoveBaseGoal()
+    goal.target_pose.header.frame_id = "map"
+    goal.target_pose.header.stamp = rospy.Time.now()
+    goal.target_pose.pose.position.x = pose[0]		#x_pos
+    goal.target_pose.pose.position.y = pose[1]		#y_pos
+    goal.target_pose.pose.position.z = pose[2]		#z_pos
+
+    goal.target_pose.pose.orientation.x = pose[3]	#x_or
+    goal.target_pose.pose.orientation.y = pose[4]	#y_or
+    goal.target_pose.pose.orientation.z = pose[5]	#z_or
+    goal.target_pose.pose.orientation.w = pose[6]	#w_or
+
+    client.send_goal(goal)
+    while (IS_SENSOR_RELIABLE) and (not rospy.is_shutdown()) :
+        if not client.get_result():
+            continue
+        else:
+            return True
+            #sys.exit(1)
+            break
+    if IS_SENSOR_RELIABLE == False:
+        client.stop_tracking_goal()
+        client.cancel_all_goals()
+        while not IS_SENSOR_RELIABLE:
+            pass
+        #sys.exit(1)
+        return True
+
+if __name__ == '__main__':
+    try:
+        rospy.init_node('hrd')
+        ###### If you want to use Google Speech Recognition, uncomment these ### 
+        #speech = Spch2Txt()
+        #speech.calibrate()
+        while not rospy.is_shutdown():
+            sent_process = NLP()
+            ### Uncomment when use Google Speech Recognition, make sure to COMMENT Vosk speech recognition 
+            #action, act_wut, todo_list = sent_process.return_list(speech.ggl_detect())
+            action, act_wut, todo_list = sent_process.return_list(vosk_detect())
+            if not todo_list:
+                print("I don't understand any of your command, please say it again")
+            else:
+                while not rospy.is_shutdown():
+                    print("Am I suppose to " + " then ".join(todo_list)+"?")
+                    ### Uncomment line below to use Google speech recognition, make sure to COMMENT Vosk speech recognition
+                    #confirm = speech.ggl_detect()
+                    confirm = vosk_detect()
+                    if confirm == 'yes':
+                        print("OK, I will " + " then ".join(todo_list))
+                        break
+                    elif confirm =='no':
+                        print("I could have misheard your command or you wanna command something else, please say again")
+                        break
+                    else:
+                        print("Either I misheard your confirmation or you aren't confirming anything")
+                if confirm == 'yes':
+                    break
+        
+        for i in range(len(action)):
+            Thread(target = action[i], args=(act_wut[i],)).start()
+            if input('Is sensor reliable? ') == 'n':
+                IS_SENSOR_RELIABLE = False
+                input("My sensors are not reliable anymore! Please teleop me and hit any key when done.")
+                IS_SENSOR_RELIABLE = True
+    except rospy.ROSInterruptException:
+        pass
