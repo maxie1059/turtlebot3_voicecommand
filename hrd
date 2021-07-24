@@ -67,12 +67,21 @@ class NLP():
 
     def extract_goal(self,cmd_sentence):
         goal = []
-        if 'computer lab' in cmd_sentence:
-            self.confirm_list.append('move to computer lab')
-            self.exe_wut.append([0.5,-0.5,0,0,0,0,1])
-        elif 'food laboratory' in cmd_sentence:
-            self.confirm_list.append('move to food lab')
-            self.exe_wut.append([0.5,-1.5,0,0,0,0,1])
+        if 'room 206' in cmd_sentence:
+            self.confirm_list.append('move to room 206')
+            self.exe_wut.append([0, 0,0,0,0,0.711771172487, 0.702411416491])
+        elif 'room 203' in cmd_sentence:
+            self.confirm_list.append('move to room 203')
+            self.exe_wut.append([10.153, -7.668, 0, 0, 0, 0.719621499225, 0.694366544307])
+        elif 'room 206a' in cmd_sentence:
+            self.confirm_list.append('move to room 206a')
+            self.exe_wut.append([-3.049, -4.803, 0, 0, 0, 0.719621499225, 0.694366544307])
+        elif 'room 2065' in cmd_sentence:
+            self.confirm_list.append('move to room 2065')
+            self.exe_wut.append([0.977, -15.625, 0, 0, 0, 0.719621499225, 0.694366544307])
+        elif 'room 204' in cmd_sentence:
+            self.confirm_list.append('move to room 204')
+            self.exe_wut.append([6.557, -15.841, 0, 0, 0, 0.719621499225, 0.694366544307])
         self.func2exe.append(movebase_client)
 
     def most_similar_cmd(self,verb):
