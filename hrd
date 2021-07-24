@@ -73,7 +73,7 @@ class NLP():
         elif 'room 203' in cmd_sentence:
             self.confirm_list.append('move to room 203')
             self.exe_wut.append([10.153, -7.668, 0, 0, 0, 0.719621499225, 0.694366544307])
-        elif 'room 206a' in cmd_sentence:
+        elif 'room 206 a' in cmd_sentence:
             self.confirm_list.append('move to room 206a')
             self.exe_wut.append([-3.049, -4.803, 0, 0, 0, 0.719621499225, 0.694366544307])
         elif 'room 2065' in cmd_sentence:
