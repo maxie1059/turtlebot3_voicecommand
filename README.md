@@ -11,6 +11,7 @@ then in command prompt, type python3 to open python3.5
 ```
 >>> import nltk
 >>> nltk.download('wordnet')
+>>> nltk.download('punkt')
 ```
 
 From this page https://alphacephei.com/vosk/models, download any english models you want and extract it, put in same directory with hrd and vosk.py, name the folder 'model'
