@@ -3,6 +3,7 @@ All of these scripts are written in Python3.5
 ```
 cd ~/catkin_ws/src
 git clone https://github.com/ROBOTIS-GIT/turtlebot3.git
+git clone https://github.com/maxie1059/turtlebot3_voicecommand.git
 cd ~/catkin_ws
 catkin_make
 python3 -m pip install nltk SpeechRecognition vosk PyAudio
