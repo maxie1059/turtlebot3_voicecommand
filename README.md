@@ -15,7 +15,7 @@ then in command prompt, type python3 to open python3.5
 >>> nltk.download('punkt')
 ```
 
-From this page https://alphacephei.com/vosk/models, download any english models you want and extract it, put in same directory with hrd and vosk.py, name the folder 'model'
+From this page https://alphacephei.com/vosk/models, download any english models you want and extract, put it in the package turtlebot3_voicecommand, name the folder 'model'
 
 First, setup both PC and turtlebot3, then bringup the robot(https://emanual.robotis.com/docs/en/platform/turtlebot3/quick-start/#pc-setup)
 
